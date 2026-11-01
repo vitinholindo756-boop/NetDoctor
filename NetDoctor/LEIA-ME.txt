@@ -1,0 +1,140 @@
+NetDoctor - monitor, diagnostico e ferramentas de DNS
+=====================================================
+
+COMO USAR
+1. Extraia a pasta inteira (nao rode de dentro do .zip).
+2. De dois cliques em NetDoctor.bat. So a janela do NetDoctor fica na barra de tarefas
+   (o console do PowerShell e escondido pelo proprio programa).
+   Se nao abrir, use NetDoctor-diagnostico.bat: ele mostra o console e os erros.
+
+NOVIDADES DE QUALIDADE DA CONEXAO
+- Assistente (primeira aba): escolha "Lag em jogo", "Internet cai", "Esta lenta" ou "Wi-Fi ruim". O programa
+  roda so os testes que importam e explica em linguagem simples, com o que fazer.
+- Diagnostico: alem do texto, mostra notas: bufferbloat (A a F pela alta do ping sob carga: A < 5 ms,
+  B < 30, C < 60, D < 200, F acima), Jogos, Chamadas, Streaming, Navegacao e velocidade contra o plano.
+  Os criterios das notas por uso sao nossos (limites de ping, jitter, perda e velocidade), nao um padrao.
+  O teste de velocidade agora usa varias conexoes ao mesmo tempo (planos rapidos nao saturam com uma so).
+- Velocidade x plano e metas da Anatel: cada teste fica em historico-velocidade.csv. O programa compara com o
+  plano que voce informou (aba Texto para o suporte) e com as metas citadas pela imprensa para banda larga
+  fixa: media mensal de 80% e velocidade instantanea de 40% do contratado. E so um indicativo com a medicao
+  deste PC ate a Cloudflare, nao a medicao oficial da Anatel; confirme as regras vigentes no site da Anatel.
+  A media do mes so e confiavel com muitos testes em dias e horarios diferentes.
+- Monitor em segundo plano: opcoes "Minimizar para a bandeja", "Alertar quando houver problemas acima de X%
+  em 3 min" (balao e som; re-arma quando normaliza), "Monitorar ao abrir" e "Iniciar com o Windows"
+  (cria um atalho visivel na pasta Inicializar; desmarque para remover). Com bandeja + monitorar ao abrir, o
+  programa inicia minimizado e vigia sozinho. Icone da bandeja fica com um ponto vermelho durante um problema.
+- Historico: o monitor grava blocos de 5 minutos (historico-monitor.csv) e a aba Historico mostra
+  disponibilidade, problemas por hora do dia, por dia e o pior horario, por destino e periodo.
+- Rota: mede cada salto do caminho (estilo MTR) sem parar. Diz onde a perda comeca, mas so quando ela continua
+  ate o destino: equipamentos do caminho limitam respostas e parecem perder sem afetar voce.
+- Relatorio HTML (abas Historico e Texto para o suporte): arquivo unico com notas, velocidade x plano, historico
+  de 30 dias, alertas, achados e o texto do suporte. Revise antes de enviar: contem IP local e a operadora.
+- Dados em %APPDATA%\NetDoctor: historico-monitor.csv, historico-velocidade.csv, eventos.csv.
+
+ATUALIZACOES (aba Atualizacoes e versao no canto inferior direito)
+- O NetDoctor consulta as versoes publicadas no GitHub do projeto (a cada 6 horas e na aba Atualizacoes). O GitHub ve o seu IP, como em qualquer site.
+- A aba mostra o que mudou em cada versao (Novidades, Melhorias, Correcoes). Quando ha versao nova, o canto inferior direito avisa e a bandeja mostra um balao.
+- "Atualizar agora": baixa o pacote, confere o SHA256 publicado, guarda um backup dos arquivos atuais em %APPDATA%\NetDoctor\backup-v... e copia os novos; se a copia falhar, restaura tudo. Depois pede para reiniciar.
+- Versoes sem .zip ou sem SHA256 nas notas nao sao instaladas automaticamente: o programa abre a pagina para baixar manualmente.
+- Dono do projeto: use o Publicar-Versao.ps1 (arquivo separado) para gerar o zip, o SHA256 e o modelo das notas.
+
+TEMA CLARO / ESCURO
+No canto superior direito: "Tema: automatico" (segue o Windows), "claro" ou "escuro".
+A escolha fica salva. As janelas de aviso do Windows (caixas de mensagem) continuam
+no tema do sistema.
+
+VELOCIDADE
+- A abertura nao espera mais a leitura da rede: rede, DNS, adaptadores e o estado das
+  otimizacoes sao lidos em segundo plano e aparecem na tela assim que ficam prontos.
+- A aba "Desempenho em jogos" abre na hora; a coluna Estado mostra "Verificando..."
+  por alguns instantes.
+- A deteccao de mudanca de rede (e o som do DNS) usa uma checagem leve a cada ~4 s.
+
+ICONE
+O logo (NetDoctor.ico) aparece na janela e na barra de tarefas enquanto o programa esta
+aberto.
+
+DETECTADO SOZINHO
+- Roteador, IP do PC, DNS em uso e tipo de conexao (Wi-Fi/cabo): lidos da rede de
+  quem esta usando. Se trocar de rede ou de DNS, o programa percebe em poucos segundos.
+- Se o DNS em uso for local (127.x, tipico de VPN ou Cloudflare WARP), o teste "DNS em uso"
+  fica desligado e o programa avisa na aba "Este PC".
+- Provedor e plano (aba "Texto para o suporte"): comecam em branco para cada pessoa
+  preencher os seus. "Detectar" tenta descobrir o provedor (consulta ipinfo.io, so
+  quando voce clica).
+- Destinos proprios (ex.: servidor de jogo): botao "+ Destino" na aba Monitor.
+
+ABA "FERRAMENTAS DNS"
+- Testar DNS: mede o tempo de resposta de cada servidor da lista e do DNS atual
+  (desempate pelo ping). Os resultados variam com a hora e a sua rede.
+- Aplicar o mais rapido: testa (se precisar) e propoe o mais rapido que NAO filtra
+  conteudo. Servidores que bloqueiam sites/anuncios (Quad9 Security, AdGuard,
+  CleanBrowsing etc.) ficam fora da escolha automatica, mas voce pode escolhe-los
+  na lista. Sempre pede confirmacao mostrando qual servidor passara a receber as
+  suas consultas.
+- Aplicar selecionado / Aplicar manual: troca o DNS do adaptador escolhido
+  (pede confirmacao e permissao de administrador; salva backup antes).
+- Automatico (DHCP) e Restaurar anterior: desfazem a troca.
+- Limpar cache: limpa o cache DNS.
+- Aviso de DNS IPv6: se o adaptador tiver DNS IPv6, o Windows pode usa-lo no lugar
+  do IPv4 escolhido (a troca e so IPv4).
+- Som: toca Sounds\applepay.mp3 quando o DNS muda (por este programa ou por outro
+  meio). Desligue em "Som ao mudar o DNS".
+
+ABA "ESTE PC" (rede + hardware)
+- Esquerda: rede (adaptador, IP, roteador, DNS, tipo de conexao). Direita: hardware
+  lido automaticamente do Windows, para qualquer pessoa: processador (nucleos, clock,
+  cache, soquete), placa-mae e BIOS, memoria (cada pente: tamanho, tipo, velocidade,
+  fabricante), placa de video (modelo, memoria, driver, resolucao) e sistema.
+- Embaixo: uso de CPU/RAM/GPU e temperaturas com atual, media, minimo e maximo desde que
+  a aba foi aberta (leitura a cada 5 s; desligue em "Medir temperaturas").
+- Sobre temperaturas: CPU-Z e GPU-Z usam drivers proprios para ler sensores; o NetDoctor
+  nao instala drivers. Ele usa, nesta ordem: LibreHardwareMonitor ou OpenHardwareMonitor se
+  estiverem abertos (CPU e GPU de qualquer marca), nvidia-smi (placas NVIDIA) e a zona
+  termica ACPI do Windows (em alguns PCs nao representa a CPU). Sem nenhum deles, mostra
+  "indisponivel" em vez de inventar um valor.
+- Copiar informacoes: copia rede + hardware + temperaturas (util para suporte).
+
+ABA "SAUDE DOS DISCOS"
+- Lista cada HDD/SSD/NVMe: tipo, capacidade, saude segundo o Windows, temperatura, horas
+  ligado, desgaste (SSD), erros de leitura/escrita e previsao de falha SMART, com uma
+  conclusao em linguagem simples e cor (verde/amarelo/vermelho). Abaixo, o espaco usado
+  de cada unidade (aviso a partir de 85% e 95%).
+- "-" significa que o disco ou o driver nao informa aquele dado. "sem acesso" na previsao
+  SMART precisa de administrador.
+- SMART detalhado (administrador): abre uma janela com a tabela de atributos de discos SATA
+  (setores realocados, pendentes, erros de CRC etc.), estilo CrystalDiskInfo. Somente leitura.
+- Nao substitui backup: um disco pode falhar sem dar nenhum sinal.
+
+- Reparar rede: limpa cache DNS e ARP e renova o IP (a internet cai por alguns
+  segundos). Opcionalmente redefine Winsock/TCP-IP (precisa reiniciar o PC; so
+  se o problema continuar). Nunca roda sozinho.
+
+ABA "DESEMPENHO EM JOGOS"
+- Lista otimizacoes com categoria, risco, se pedem administrador e o estado atual
+  (Ativa / Inativa / Parcial / Incompativel). Clique em uma para ler o que ela faz.
+- Marcar recomendadas: Modo de Jogo, desativar gravacao do Xbox Game Bar e plano de
+  energia Alto desempenho (este so em PC de mesa; em notebook gasta mais bateria).
+- Aplicar selecionadas: pede confirmacao, oferece criar um ponto de restauracao do
+  Windows e guarda o valor original de cada ajuste em jogos-backup.json.
+- Reverter selecionadas / Reverter tudo: devolve os valores originais guardados.
+- Ponto de restauracao, Limpar temporarios, Otimizar discos (SSD: TRIM; HDD:
+  desfragmentar) e Verificar sistema (SFC): abrem uma janela de administrador.
+- Nao mexe em servicos do Windows nem em ajustes de TCP.
+- Honestidade sobre ganhos: Modo de Jogo, plano de energia e desligar a gravacao do
+  Game Bar costumam ajudar pouco ou nada em PCs bons. Os ganhos maiores aparecem em
+  PCs fracos. HAGS e prioridade MMCSS dependem do jogo e do hardware.
+- Fontes: documentacao da Microsoft (MMCSS, Windows Error Reporting, HAGS) e o projeto
+  winutil (Chris Titus Tech) para o modelo de desfazer.
+
+DIAGNOSTICO
+- Alem de latencia, perda, velocidade e rota, avisa se o Windows pode desligar a
+  placa de rede para economizar energia.
+
+Somente as abas "Ferramentas DNS" e "Desempenho em jogos" e o botao "Reparar rede"
+alteram o PC, sempre com confirmacao. Monitor, Diagnostico e Rede sao somente leitura.
+
+ARQUIVOS
+NetDoctor.ps1 (janela), NetDoctor.engine.ps1 (nucleo), NetDoctor.bg.ps1 (tarefas de
+fundo), NetDoctor.dns.ps1 (DNS e reparo), NetDoctor.games.ps1 (otimizacoes de jogos), NetDoctor.hw.ps1 (hardware e discos), NetDoctor.insights.ps1 (notas, historico, alertas, rota, assistente, relatorio), NetDoctor.update.ps1 (atualizacoes), NetDoctor.ico, Sounds\applepay.mp3.
+Logs e configuracao: %APPDATA%\NetDoctor ; relatorios: pasta "roteador" no perfil.
