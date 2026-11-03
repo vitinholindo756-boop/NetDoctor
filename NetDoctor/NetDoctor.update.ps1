@@ -29,7 +29,11 @@ $script:UpdCheckCode = {
         elseif ($codigo -ne 200) { $r.Msg = ('O GitHub respondeu com o código {0}.' -f $codigo) }
         else {
             $lista = @()
-            foreach ($x in @($corpo | ConvertFrom-Json)) {
+            # No PowerShell 5.1, enviar a lista pelo pipe entrega o array inteiro como UM item; com 2 ou mais versoes publicadas
+            # isso fazia todas serem descartadas. ConvertFrom-Json -InputObject devolve o array e o foreach percorre cada versao.
+            $itens = ConvertFrom-Json -InputObject $corpo
+            foreach ($x in @($itens)) {
+                if ($null -eq $x) { continue }
                 if ($x.draft -or $x.prerelease) { continue }
                 $zip = $null
                 foreach ($a in @($x.assets)) { if ([string]$a.name -like '*.zip') { $zip = $a; break } }

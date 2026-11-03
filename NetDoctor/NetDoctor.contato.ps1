@@ -7,4 +7,4 @@
 #                (termina em /exec; veja o passo a passo no arquivo Receber-Sugestoes.gs).
 #                Deixe vazio para desativar o envio direto (a aba usa so o e-mail).
 $script:SupportEmail = 'vitinholindo756@gmail.com'
-$script:FeedbackUrl = 'https://script.google.com/macros/s/AKfycbxB1PkbdQP0EP6AtsrN04Tv2qfaDuz-doFT98UhlcwFSDTTHLkZW6YBAOWQ21BQaxwArA/exec'
+$script:FeedbackUrl = 'https://script.google.com/macros/s/AKfycbwLuxbUn6WtxhzThjy-dUMuOyFiVmF-1QCiJoH0vRnKS75EF8jKdj7sFFRPv9zGfGMVVg/exec'
