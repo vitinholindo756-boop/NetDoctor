@@ -27,7 +27,7 @@ function Get-ReportDir {
 }
 
 # Versao instalada e repositorio de onde saem as atualizacoes (GitHub Releases). O Publicar-Versao.ps1 troca a versao.
-$script:AppVersion = '1.0.0'
+$script:AppVersion = '1.1.5'
 $script:RepoOwner = 'vitinholindo756-boop'
 $script:RepoName = 'NetDoctor'
 
@@ -53,6 +53,8 @@ function New-DefaultConfig {
         AlertaPct = 8
         AutoMonitor = $false
         AutoUpdate = $true
+        Idioma    = 'auto'
+        InstallId = ''
         # Roteador e DNS ficam com Destino vazio de proposito: sao detectados
         # automaticamente na rede de quem estiver usando (Auto = gateway / dns).
         # O usuario adiciona seus proprios destinos (ex.: servidor de jogo) em "+ Destino".
@@ -84,6 +86,8 @@ function Load-Config {
     if ($null -eq $cfg.Bandeja) { $cfg | Add-Member -NotePropertyName Bandeja -NotePropertyValue $false -Force }
     if ($null -eq $cfg.Alertas) { $cfg | Add-Member -NotePropertyName Alertas -NotePropertyValue $true -Force }
     if ($null -eq $cfg.AlertaPct) { $cfg | Add-Member -NotePropertyName AlertaPct -NotePropertyValue 8 -Force }
+    if ($null -eq $cfg.Idioma) { $cfg | Add-Member -NotePropertyName Idioma -NotePropertyValue 'auto' -Force }
+    if ($null -eq $cfg.InstallId) { $cfg | Add-Member -NotePropertyName InstallId -NotePropertyValue '' -Force }
     if ($null -eq $cfg.AutoUpdate) { $cfg | Add-Member -NotePropertyName AutoUpdate -NotePropertyValue $true -Force }
     if ($null -eq $cfg.AutoMonitor) { $cfg | Add-Member -NotePropertyName AutoMonitor -NotePropertyValue $false -Force }
     if ($null -eq $cfg.Tema) { $cfg | Add-Member -NotePropertyName Tema -NotePropertyValue 'auto' -Force }

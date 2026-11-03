@@ -31,6 +31,22 @@ NOVIDADES DE QUALIDADE DA CONEXAO
   de 30 dias, alertas, achados e o texto do suporte. Revise antes de enviar: contem IP local e a operadora.
 - Dados em %APPDATA%\NetDoctor: historico-monitor.csv, historico-velocidade.csv, eventos.csv.
 
+SUPORTE, WI-FI E IDIOMAS
+- Aba Suporte: perguntas frequentes, e-mail de contato, formulario para enviar sugestao, problema, duvida ou elogio, e o botao
+  "Gerar pacote de suporte". O formulario envia para um script do Google (Google Apps Script) que repassa para o e-mail do dono;
+  nenhuma senha fica no programa e o e-mail do dono nao aparece. Sem o envio configurado, use "Abrir no meu e-mail".
+  O que e enviado: o texto, o e-mail se voce informar, o tipo, a versao, o idioma, um identificador aleatorio da instalacao (so para limitar
+  envios) e, se voce deixar marcado, versao do Windows, do PowerShell e tipo de conexao. Nunca IP, nome do PC ou nome de usuario
+  (o Google ve o IP de quem envia, como qualquer site).
+- Pacote de suporte: um zip com informacoes tecnicas, ultimas 300 linhas do erro.log, config.json (sem o identificador) e os historicos.
+  Nome de usuario e nome do PC sao removidos dos textos. Nada e enviado automaticamente.
+- Dono do projeto: edite NetDoctor.contato.ps1 (SupportEmail e FeedbackUrl) e siga o passo a passo no Receber-Sugestoes.gs.
+- Aba Wi-Fi: sinal, canal, faixa, tipo e velocidade da sua conexao; lista de redes vizinhas e canais com nivel de interferencia; sugere canal.
+  Usa o netsh (somente leitura). Reconhece portugues, ingles e espanhol; no Windows 11 recente a lista de vizinhas exige Localizacao ligada.
+  As redes vizinhas ficam so na tela: nao entram no pacote de suporte nem no relatorio.
+- Idiomas: Auto (segue o Windows), Portugues, English e Espanol, no canto superior direito. Traduz abas, botoes, rotulos, colunas e
+  mensagens comuns. Textos gerados na hora (resultado do diagnostico, assistente, vereditos, relatorio HTML) ainda ficam em portugues.
+
 ATUALIZACOES (aba Atualizacoes e versao no canto inferior direito)
 - O NetDoctor consulta as versoes publicadas no GitHub do projeto (a cada 6 horas e na aba Atualizacoes). O GitHub ve o seu IP, como em qualquer site.
 - A aba mostra o que mudou em cada versao (Novidades, Melhorias, Correcoes). Quando ha versao nova, o canto inferior direito avisa e a bandeja mostra um balao.
@@ -136,5 +152,5 @@ alteram o PC, sempre com confirmacao. Monitor, Diagnostico e Rede sao somente le
 
 ARQUIVOS
 NetDoctor.ps1 (janela), NetDoctor.engine.ps1 (nucleo), NetDoctor.bg.ps1 (tarefas de
-fundo), NetDoctor.dns.ps1 (DNS e reparo), NetDoctor.games.ps1 (otimizacoes de jogos), NetDoctor.hw.ps1 (hardware e discos), NetDoctor.insights.ps1 (notas, historico, alertas, rota, assistente, relatorio), NetDoctor.update.ps1 (atualizacoes), NetDoctor.ico, Sounds\applepay.mp3.
+fundo), NetDoctor.dns.ps1 (DNS e reparo), NetDoctor.games.ps1 (otimizacoes de jogos), NetDoctor.hw.ps1 (hardware e discos), NetDoctor.insights.ps1 (notas, historico, alertas, rota, assistente, relatorio), NetDoctor.update.ps1 (atualizacoes), NetDoctor.contato.ps1 (contato do dono), NetDoctor.i18n.ps1 (idiomas), NetDoctor.support.ps1 (suporte), NetDoctor.wifi.ps1 (Wi-Fi), NetDoctor.ico, Sounds\applepay.mp3.
 Logs e configuracao: %APPDATA%\NetDoctor ; relatorios: pasta "roteador" no perfil.

@@ -32,6 +32,10 @@ try {
 . (Join-Path $PSScriptRoot 'NetDoctor.hw.ps1')
 . (Join-Path $PSScriptRoot 'NetDoctor.insights.ps1')
 . (Join-Path $PSScriptRoot 'NetDoctor.update.ps1')
+. (Join-Path $PSScriptRoot 'NetDoctor.contato.ps1')
+. (Join-Path $PSScriptRoot 'NetDoctor.i18n.ps1')
+. (Join-Path $PSScriptRoot 'NetDoctor.support.ps1')
+. (Join-Path $PSScriptRoot 'NetDoctor.wifi.ps1')
 try { [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12 } catch { }
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
@@ -77,6 +81,7 @@ $script:UpdCheckJob = $null; $script:UpdDlJob = $null; $script:UpdReleases = @()
 $script:UpdAvailable = $false; $script:UpdChecking = $false; $script:UpdManual = $false; $script:UpdMsg = ''
 $script:UpdLastCheck = [datetime]::MinValue; $script:UpdNotified = ''; $script:UpdExpectedSha = ''; $script:UpdOk = $false
 $script:UpdLines = New-Object System.Collections.ArrayList
+$script:WifiJob = $null; $script:WifiData = $null; $script:WifiLoaded = $false; $script:FbJob = $null; $script:FbLast = [datetime]::MinValue
 $script:LastScores = $null; $script:LastAnatel = $null; $script:HistData = $null; $script:HistLoaded = $false
 $script:ExitRequested = $false; $script:AlertTick = 0; $script:trayNormal = $null; $script:trayAlert = $null
 $script:HwLastLive = $null; $script:DiskRows = @(); $script:DiskVols = @(); $script:DiskSmart = $true
@@ -157,7 +162,7 @@ function Set-DoubleBuffered($ctl) {
     try { $ctl.GetType().GetProperty('DoubleBuffered', [System.Reflection.BindingFlags]'Instance,NonPublic').SetValue($ctl, $true, $null) } catch { }
 }
 
-function Set-Status([string]$text) { $script:lblStatus.Text = $text }
+function Set-Status([string]$text) { $script:lblStatus.Text = (T $text) }
 
 $script:BtnClick = {
     param($s, $e)
@@ -689,11 +694,11 @@ function Start-DnsTest {
 }
 
 function Show-Msg([string]$text, [string]$icon = 'Information') {
-    [void][System.Windows.Forms.MessageBox]::Show($text, 'NetDoctor', 'OK', $icon)
+    [void][System.Windows.Forms.MessageBox]::Show((T $text), 'NetDoctor', 'OK', $icon)
 }
 
 function Confirm-Dns([string]$text) {
-    ([System.Windows.Forms.MessageBox]::Show($text, 'NetDoctor - alterar DNS', 'YesNo', 'Question') -eq [System.Windows.Forms.DialogResult]::Yes)
+    ([System.Windows.Forms.MessageBox]::Show((T $text), 'NetDoctor - DNS', 'YesNo', 'Question') -eq [System.Windows.Forms.DialogResult]::Yes)
 }
 
 function Finish-DnsChange($r, [string]$okMsg) {
@@ -841,7 +846,7 @@ function Check-NetChange {
 
 # ------------------------------------------------------------ desempenho em jogos (interface)
 function Confirm-Action([string]$text, [string]$title = 'NetDoctor') {
-    ([System.Windows.Forms.MessageBox]::Show($text, $title, 'YesNo', 'Question') -eq [System.Windows.Forms.DialogResult]::Yes)
+    ([System.Windows.Forms.MessageBox]::Show((T $text), $title, 'YesNo', 'Question') -eq [System.Windows.Forms.DialogResult]::Yes)
 }
 
 function Fill-GameList {
@@ -1029,6 +1034,9 @@ function Apply-Theme {
     $script:histPanel.Invalidate()
     Render-UpdateNotes
     Update-VersionLabel
+    Fill-WifiLists
+    Show-WifiSummary
+    Render-Faq
     $script:lblAssistBanner.BackColor = $p.Info; $script:lblRoute.BackColor = $p.Info
     if ($script:AssistColored.Count -gt 0) {
         $script:rtbAssist.Clear()
@@ -1523,6 +1531,134 @@ function Finish-UpdateInstall($m) {
     }
 }
 
+# ------------------------------------------------------------ wi-fi, suporte e idioma (interface)
+function Start-Wifi {
+    if ($script:WifiJob -and -not $script:WifiJob.Handle.IsCompleted) { return }
+    if ($script:WifiJob) { Dispose-Bg $script:WifiJob }
+    $script:lblWifi.Text = 'Lendo o Wi-Fi...'
+    $script:WifiJob = Start-Bg $script:WifiCode @{ Q = $script:BgQ }
+}
+
+function Fill-WifiLists {
+    $m = $script:WifiData
+    $lv = $script:lvWifi; $lc = $script:lvWifiCh
+    $lv.BeginUpdate(); $lv.Items.Clear(); $lc.BeginUpdate(); $lc.Items.Clear()
+    if ($m -and $m.Ok) {
+        $nets = @($m.Nets | Sort-Object { -1 * [int]$_.Signal })
+        foreach ($n in $nets) {
+            $nome = [string]$n.Ssid; if (-not $nome) { $nome = '(oculta)' }
+            $it = New-Object System.Windows.Forms.ListViewItem($nome)
+            [void]$it.SubItems.Add(('{0}%' -f $n.Signal)); [void]$it.SubItems.Add([string]$n.Channel)
+            [void]$it.SubItems.Add((Get-WifiBand $n.Channel)); [void]$it.SubItems.Add([string]$n.Radio)
+            $minha = ''
+            if ($m.Own -and $m.Own.Bssid -and [string]$n.Bssid -eq [string]$m.Own.Bssid) { $minha = '●'; $it.BackColor = $script:Pal.RowOk }
+            [void]$it.SubItems.Add($minha)
+            [void]$lv.Items.Add($it)
+        }
+        $an = Get-WifiAnalysis $m.Own $m.Nets
+        foreach ($c in $an.Canais) {
+            $it = New-Object System.Windows.Forms.ListViewItem([string]$c.Canal)
+            [void]$it.SubItems.Add([string]$c.Faixa); [void]$it.SubItems.Add([string]$c.Redes)
+            $mx = '-'; if ($c.Max -gt 0) { $mx = ('{0}%' -f $c.Max) }
+            [void]$it.SubItems.Add($mx); [void]$it.SubItems.Add([string]$c.Nivel); [void]$it.SubItems.Add([string]$c.Obs)
+            if ($c.Nivel -eq 'alta') { $it.BackColor = $script:Pal.RowBad } elseif ($c.Nivel -eq 'média') { $it.BackColor = $script:Pal.RowWarn }
+            [void]$lc.Items.Add($it)
+        }
+    }
+    $lv.EndUpdate(); $lc.EndUpdate()
+}
+
+function Show-WifiSummary {
+    $m = $script:WifiData
+    if (-not $m) { return }
+    if (-not $m.Ok) { $script:lblWifi.Text = $m.Msg; $script:lblWifi.BackColor = $script:Pal.Info; return }
+    $an = Get-WifiAnalysis $m.Own $m.Nets
+    $linhas = @()
+    $o = $m.Own
+    if ($o -and $o.Conectado) {
+        $rx = '-'; if ($null -ne $o.Rx) { $rx = ('{0} Mbps' -f $o.Rx) }
+        $tx = '-'; if ($null -ne $o.Tx) { $tx = ('{0} Mbps' -f $o.Tx) }
+        $linhas += ('Rede: {0}   |   canal {1} ({2})   |   {3}   |   segurança: {4}   |   recepção {5} / envio {6}' -f $o.Ssid, $o.Channel, (Get-WifiBand $o.Channel), $o.Radio, $o.Auth, $rx, $tx)
+    }
+    $linhas += $an.Linhas
+    if ($m.Msg) { $linhas += $m.Msg }
+    $script:lblWifi.Text = ($linhas -join "`r`n")
+    $script:lblWifi.BackColor = (Get-RowColor $an.Nivel)
+    if ($an.Nivel -eq 'ok') { $script:lblWifi.BackColor = $script:Pal.Info }
+}
+
+# ----- suporte
+function Render-Faq {
+    $script:rtbFaq.Clear()
+    foreach ($l in @(Get-FaqLines $script:LangCode)) { Add-RtbLine $script:rtbFaq $l.T $l.C }
+    if ($script:rtbFaq.TextLength -gt 0) { $script:rtbFaq.SelectionStart = 0; $script:rtbFaq.ScrollToCaret() }
+}
+
+function Update-SupportInfo {
+    $txt = (T 'Precisa de ajuda? Veja as perguntas frequentes ou envie uma mensagem.')
+    if ($script:SupportEmail) { $txt += "`r`n" + ((T 'E-mail de contato:') + ' ' + $script:SupportEmail) }
+    else { $txt += "`r`n" + (T 'O e-mail de contato ainda não foi configurado pelo desenvolvedor.') }
+    $script:lblSupportHead.Text = $txt
+    $script:btnSupCopy.Enabled = [bool]$script:SupportEmail
+    $script:btnSupWrite.Enabled = [bool]$script:SupportEmail
+    $script:btnFbSend.Enabled = [bool]$script:FeedbackUrl
+    if ($script:FeedbackUrl) { $script:lblFbStatus.Text = (T 'Escreva sua mensagem e clique em Enviar.') }
+    else { $script:lblFbStatus.Text = (T 'O envio direto ainda não foi configurado. Use "Abrir no meu e-mail".') }
+}
+
+function Get-FeedbackType { @('sugestao', 'bug', 'duvida', 'elogio')[[math]::Max(0, [int]$script:cmbFbTipo.SelectedIndex)] }
+
+function Start-FeedbackSend {
+    $msg = $script:txtFbMsg.Text.Trim()
+    if ($msg.Length -lt 10) { $script:lblFbStatus.Text = (T 'Escreva uma mensagem com pelo menos 10 caracteres.'); return }
+    if ($msg.Length -gt 3000) { $msg = $msg.Substring(0, 3000) }
+    $contato = $script:txtFbMail.Text.Trim()
+    if ($contato -and $contato -notmatch '^[^@\s]+@[^@\s]+\.[^@\s]+$') { $script:lblFbStatus.Text = (T 'O e-mail informado não parece válido. Corrija ou deixe em branco.'); return }
+    if (((Get-Date) - $script:FbLast).TotalSeconds -lt 60) { $script:lblFbStatus.Text = (T 'Aguarde um minuto para enviar outra mensagem.'); return }
+    if ($script:FbJob -and -not $script:FbJob.Handle.IsCompleted) { return }
+    if ($script:FbJob) { Dispose-Bg $script:FbJob }
+    $tec = ''; if ($script:chkFbTec.Checked) { $tec = Get-TechInfoText }
+    $payload = @{ tipo = (Get-FeedbackType); mensagem = $msg; contato = $contato; versao = $script:AppVersion; idioma = $script:LangCode; id = (Get-InstallId); tecnico = $tec }
+    $json = $payload | ConvertTo-Json -Compress
+    $script:FbLast = Get-Date
+    $script:btnFbSend.Enabled = $false
+    $script:lblFbStatus.Text = (T 'Enviando...')
+    $script:FbJob = Start-Bg $script:FeedbackCode @{ Q = $script:BgQ; Url = $script:FeedbackUrl; Json = $json }
+}
+
+function Open-FeedbackMail {
+    if (-not $script:SupportEmail) { Show-Msg 'O e-mail de contato ainda não foi configurado pelo desenvolvedor.'; return }
+    $corpo = $script:txtFbMsg.Text
+    if ($script:chkFbTec.Checked) { $corpo += "`r`n`r`n" + (Get-TechInfoText) }
+    try { Start-Process (New-MailtoLink $script:SupportEmail ('[NetDoctor] ' + (Get-FeedbackType) + ' - v' + $script:AppVersion) $corpo) } catch { Set-Status 'Não foi possível abrir o programa de e-mail.' }
+}
+
+function Create-SupportPackage {
+    $q = 'Criar o pacote de suporte?' + "`r`n`r`n" + 'Ele reúne em um zip: informações do programa e do Windows, o log de erros, a configuração e os históricos de velocidade e do monitor. Nome de usuário e nome do computador são removidos dos textos. Nada é enviado: você decide se e para quem mandar o arquivo.'
+    if (-not (Confirm-Action $q 'NetDoctor - pacote de suporte')) { return }
+    $r = New-SupportPackage
+    if ($r.Ok) {
+        Set-Status 'Pacote de suporte criado.'
+        try { Start-Process explorer.exe ('/select,"' + $r.Path + '"') } catch { }
+    } else { Set-Status 'Não foi possível criar o pacote de suporte.'; Show-Msg ('Não foi possível criar o pacote de suporte.' + "`r`n`r`n" + $r.Msg) 'Warning' }
+}
+
+# ----- idioma
+function Set-Language([string]$pref) {
+    $script:Cfg.Idioma = $pref
+    try { Save-Config $script:Cfg } catch { }
+    Apply-Language
+}
+
+function Apply-Language {
+    $script:LangCode = Resolve-LangCode ([string]$script:Cfg.Idioma)
+    foreach ($c in $script:form.Controls) { Translate-Control $c }
+    try { Translate-Combo $script:cmbTheme 'tema' } catch { }
+    try { $script:sub.Text = (T 'monitor, diagnóstico e ferramentas de DNS') } catch { }
+    try { Render-Faq; Update-SupportInfo } catch { }
+    try { $script:tabs.Invalidate() } catch { }
+}
+
 function Handle-Bg($m) {
     switch ($m.Kind) {
         'diag-line' { Add-RtbLine $script:rtbDiag $m.Text $m.Color; [void]$script:DiagLines.Add($m.Text); [void]$script:DiagColored.Add(@{ T = $m.Text; C = $m.Color }) }
@@ -1574,6 +1710,12 @@ function Handle-Bg($m) {
         'dns-info' {
             $script:DnsCache = @{ IfIndex = [int]$m.IfIndex; Servers = @($m.Servers); V6 = @($m.V6); Modo = [string]$m.Modo }
             if ([int]$m.IfIndex -eq (Get-SelectedIfIndex)) { Set-DnsInfoText }
+        }
+        'wifi-info' { $script:WifiData = $m; Fill-WifiLists; Show-WifiSummary }
+        'fb-done' {
+            $script:btnFbSend.Enabled = [bool]$script:FeedbackUrl
+            if ($m.Ok) { $script:txtFbMsg.Clear(); $script:lblFbStatus.Text = (T 'Mensagem enviada. Obrigado!') }
+            else { $script:FbLast = [datetime]::MinValue; $script:lblFbStatus.Text = ((T 'Não foi possível enviar: ') + [string]$m.Msg + ' ' + (T 'Você pode usar "Abrir no meu e-mail".')) }
         }
         'upd-info' {
             $script:UpdChecking = $false
@@ -1690,6 +1832,7 @@ function Drain-All {
     if ($script:AlertTick -ge 40) {
         $script:AlertTick = 0
         try { Check-Alerts; Update-Tray } catch { Log-Error $_ }
+        try { if ($script:chkWifiAuto.Checked -and (Get-TabKey $script:tabs.SelectedTab) -eq 'Wi-Fi') { Start-Wifi } } catch { Log-Error $_ }
         try {
             if ([bool]$script:Cfg.AutoUpdate -and -not $script:UpdChecking -and (((Get-Date) - $script:UpdLastCheck).TotalHours -ge 6)) { Start-UpdateCheck }
         } catch { Log-Error $_ }
@@ -1730,6 +1873,7 @@ $sub.AutoSize = $true; $sub.Left = 140; $sub.Top = 18
 $script:lblChip = New-Object System.Windows.Forms.Label
 $script:lblChip.Text = '○ parado'; $script:lblChip.ForeColor = [System.Drawing.Color]::White
 $script:lblChip.AutoSize = $true; $script:lblChip.Anchor = 'Top,Right'; $script:lblChip.Left = 920; $script:lblChip.Top = 18
+$script:sub = $sub
 $header.Controls.Add($title); $header.Controls.Add($sub); $header.Controls.Add($script:lblChip)
 $script:cmbTheme = New-Object System.Windows.Forms.ComboBox
 $script:cmbTheme.DropDownStyle = 'DropDownList'; $script:cmbTheme.FlatStyle = 'Flat'; $script:cmbTheme.Width = 140; $script:cmbTheme.Top = 15
@@ -1739,10 +1883,22 @@ $idxTema = 0; if ([string]$script:Cfg.Tema -eq 'claro') { $idxTema = 1 } elseif 
 $script:cmbTheme.SelectedIndex = $idxTema
 $script:cmbTheme.Left = 760
 $script:cmbTheme.Add_SelectedIndexChanged({
-    try { Set-Theme (@('auto', 'claro', 'escuro')[$script:cmbTheme.SelectedIndex]) } catch { Log-Error $_ }
+    try { if ($script:Translating -or $script:cmbTheme.SelectedIndex -lt 0) { return }; Set-Theme (@('auto', 'claro', 'escuro')[$script:cmbTheme.SelectedIndex]) } catch { Log-Error $_ }
 })
 $header.Controls.Add($script:cmbTheme)
-$header.Add_Resize({ try { $script:cmbTheme.Left = [math]::Max(320, $script:header.ClientSize.Width - $script:cmbTheme.Width - 150) } catch { } })
+$script:cmbLang = New-Object System.Windows.Forms.ComboBox
+$script:cmbLang.DropDownStyle = 'DropDownList'; $script:cmbLang.FlatStyle = 'Flat'; $script:cmbLang.Width = 110; $script:cmbLang.Top = 15
+$script:cmbLang.BackColor = [System.Drawing.Color]::FromArgb(45, 58, 78); $script:cmbLang.ForeColor = [System.Drawing.Color]::White
+foreach ($li in @('Auto', 'Português', 'English', 'Español')) { [void]$script:cmbLang.Items.Add($li) }
+$idxLang = 0
+switch ([string]$script:Cfg.Idioma) { 'pt' { $idxLang = 1 } 'en' { $idxLang = 2 } 'es' { $idxLang = 3 } }
+$script:cmbLang.SelectedIndex = $idxLang
+$script:cmbLang.Left = 640
+$script:cmbLang.Add_SelectedIndexChanged({
+    try { if ($script:Translating -or $script:cmbLang.SelectedIndex -lt 0) { return }; Set-Language (@('auto', 'pt', 'en', 'es')[$script:cmbLang.SelectedIndex]) } catch { Log-Error $_ }
+})
+$header.Controls.Add($script:cmbLang)
+$header.Add_Resize({ try { $script:cmbTheme.Left = [math]::Max(320, $script:header.ClientSize.Width - $script:cmbTheme.Width - 150); $script:cmbLang.Left = $script:cmbTheme.Left - $script:cmbLang.Width - 10 } catch { } })
 $root.Controls.Add($header, 0, 0)
 
 $script:lblStatus = New-Object System.Windows.Forms.Label
@@ -2171,7 +2327,7 @@ Add-Row $tHi 'abs' 44; Add-Row $tHi 'pct' 100; Add-Row $tHi 'abs' 86
 $tbHi = New-Toolbar
 [void]$tbHi.Controls.Add((New-Lbl 'Período' 56))
 $script:cmbHistPer = New-Object System.Windows.Forms.ComboBox
-$script:cmbHistPer.DropDownStyle = 'DropDownList'; $script:cmbHistPer.Width = 100; $script:cmbHistPer.Margin = (New-Object System.Windows.Forms.Padding(3, 6, 3, 3))
+$script:cmbHistPer.Name = 'histper'; $script:cmbHistPer.Tag = 'i18n'; $script:cmbHistPer.DropDownStyle = 'DropDownList'; $script:cmbHistPer.Width = 100; $script:cmbHistPer.Margin = (New-Object System.Windows.Forms.Padding(3, 6, 3, 3))
 [void]$script:cmbHistPer.Items.Add('Hoje'); [void]$script:cmbHistPer.Items.Add('7 dias'); [void]$script:cmbHistPer.Items.Add('30 dias')
 $script:cmbHistPer.SelectedIndex = 1
 [void]$tbHi.Controls.Add($script:cmbHistPer)
@@ -2225,8 +2381,96 @@ $tUp.Controls.Add($script:rtbUpd, 0, 2)
 $pgUpd.Controls.Add($tUp)
 $tabs.TabPages.Add($pgUpd)
 
+# ----- aba Wi-Fi
+$pgWifi = New-Object System.Windows.Forms.TabPage('Wi-Fi')
+$tWf = New-Tlp 4
+Add-Row $tWf 'abs' 44; Add-Row $tWf 'abs' 112; Add-Row $tWf 'pct' 55; Add-Row $tWf 'pct' 45
+$tbWf = New-Toolbar
+[void]$tbWf.Controls.Add((New-Btn 'Atualizar' { Start-Wifi } 100))
+$script:chkWifiAuto = New-Object System.Windows.Forms.CheckBox
+$script:chkWifiAuto.Text = 'Atualizar a cada 10 s'; $script:chkWifiAuto.AutoSize = $true
+$script:chkWifiAuto.Margin = (New-Object System.Windows.Forms.Padding(14, 8, 3, 3))
+[void]$tbWf.Controls.Add($script:chkWifiAuto)
+$tWf.Controls.Add($tbWf, 0, 0)
+$script:lblWifi = New-Object System.Windows.Forms.Label
+$script:lblWifi.Tag = 'verdict'; $script:lblWifi.Dock = 'Fill'; $script:lblWifi.Padding = (New-Object System.Windows.Forms.Padding(10, 6, 10, 6))
+$script:lblWifi.Font = New-Object System.Drawing.Font('Segoe UI', [single]10)
+$script:lblWifi.BackColor = $script:Pal.Info
+$script:lblWifi.Text = 'Abra esta aba para analisar o Wi-Fi: sinal, canal e redes vizinhas.'
+$tWf.Controls.Add($script:lblWifi, 0, 1)
+$script:lvWifi = New-Object System.Windows.Forms.ListView
+$script:lvWifi.Dock = 'Fill'; $script:lvWifi.View = 'Details'; $script:lvWifi.FullRowSelect = $true; $script:lvWifi.GridLines = $true; $script:lvWifi.HideSelection = $false
+foreach ($col in @(@('Rede', 240), @('Sinal', 70), @('Canal', 70), @('Faixa', 110), @('Tipo', 130), @('Sua rede', 80))) { [void]$script:lvWifi.Columns.Add($col[0], $col[1]) }
+Set-DoubleBuffered $script:lvWifi
+$tWf.Controls.Add($script:lvWifi, 0, 2)
+$script:lvWifiCh = New-Object System.Windows.Forms.ListView
+$script:lvWifiCh.Dock = 'Fill'; $script:lvWifiCh.View = 'Details'; $script:lvWifiCh.FullRowSelect = $true; $script:lvWifiCh.GridLines = $true; $script:lvWifiCh.HideSelection = $false
+foreach ($col in @(@('Canal', 70), @('Faixa', 120), @('Redes', 70), @('Sinal máx.', 90), @('Interferência', 120), @('Observação', 320))) { [void]$script:lvWifiCh.Columns.Add($col[0], $col[1]) }
+Set-DoubleBuffered $script:lvWifiCh
+$tWf.Controls.Add($script:lvWifiCh, 0, 3)
+$pgWifi.Controls.Add($tWf)
+$tabs.TabPages.Add($pgWifi)
+
+# ----- aba Suporte
+$pgSupp = New-Object System.Windows.Forms.TabPage('Suporte')
+$tSp = New-Tlp 3
+Add-Row $tSp 'abs' 74; Add-Row $tSp 'abs' 44; Add-Row $tSp 'pct' 100
+$script:lblSupportHead = New-Object System.Windows.Forms.Label
+$script:lblSupportHead.Tag = 'info'; $script:lblSupportHead.Dock = 'Fill'; $script:lblSupportHead.Padding = (New-Object System.Windows.Forms.Padding(10, 8, 10, 4))
+$script:lblSupportHead.Font = New-Object System.Drawing.Font('Segoe UI', [single]10.5)
+$tSp.Controls.Add($script:lblSupportHead, 0, 0)
+$tbSp = New-Toolbar
+$script:btnSupCopy = New-Btn 'Copiar e-mail' { if ($script:SupportEmail) { [System.Windows.Forms.Clipboard]::SetText($script:SupportEmail); Set-Status 'Texto copiado.' } } 130
+$script:btnSupWrite = New-Btn 'Escrever e-mail' { if ($script:SupportEmail) { try { Start-Process ('mailto:' + $script:SupportEmail) } catch { } } } 140
+[void]$tbSp.Controls.Add($script:btnSupCopy); [void]$tbSp.Controls.Add($script:btnSupWrite)
+[void]$tbSp.Controls.Add((New-Btn 'Gerar pacote de suporte' { Create-SupportPackage } 190))
+[void]$tbSp.Controls.Add((New-Btn 'Abrir página do projeto' { try { Start-Process ('https://github.com/{0}/{1}' -f $script:RepoOwner, $script:RepoName) } catch { } } 180))
+$tSp.Controls.Add($tbSp, 0, 1)
+$mid2 = New-Object System.Windows.Forms.TableLayoutPanel
+$mid2.Dock = 'Fill'; $mid2.ColumnCount = 2; $mid2.RowCount = 1
+[void]$mid2.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::Percent, 55)))
+[void]$mid2.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::Percent, 45)))
+[void]$mid2.RowStyles.Add((New-Object System.Windows.Forms.RowStyle([System.Windows.Forms.SizeType]::Percent, 100)))
+$script:rtbFaq = New-Object System.Windows.Forms.RichTextBox
+$script:rtbFaq.Dock = 'Fill'; $script:rtbFaq.ReadOnly = $true; $script:rtbFaq.Font = New-Object System.Drawing.Font('Segoe UI', [single]10)
+$mid2.Controls.Add($script:rtbFaq, 0, 0)
+$fp = New-Tlp 9
+Add-Row $fp 'abs' 24; Add-Row $fp 'abs' 32; Add-Row $fp 'abs' 24; Add-Row $fp 'pct' 100; Add-Row $fp 'abs' 24; Add-Row $fp 'abs' 32; Add-Row $fp 'abs' 46; Add-Row $fp 'abs' 44; Add-Row $fp 'abs' 56
+$l1 = New-Lbl 'Tipo da mensagem' 200; $l1.Dock = 'Fill'; $l1.TextAlign = 'BottomLeft'
+$fp.Controls.Add($l1, 0, 0)
+$script:cmbFbTipo = New-Object System.Windows.Forms.ComboBox
+$script:cmbFbTipo.Name = 'fbtipo'; $script:cmbFbTipo.Tag = 'i18n'; $script:cmbFbTipo.DropDownStyle = 'DropDownList'; $script:cmbFbTipo.Width = 260
+foreach ($it in @('Sugestão', 'Problema (bug)', 'Dúvida', 'Elogio')) { [void]$script:cmbFbTipo.Items.Add($it) }
+$script:cmbFbTipo.SelectedIndex = 0
+$fp.Controls.Add($script:cmbFbTipo, 0, 1)
+$l2 = New-Lbl 'Sua mensagem' 200; $l2.Dock = 'Fill'; $l2.TextAlign = 'BottomLeft'
+$fp.Controls.Add($l2, 0, 2)
+$script:txtFbMsg = New-Object System.Windows.Forms.TextBox
+$script:txtFbMsg.Multiline = $true; $script:txtFbMsg.ScrollBars = 'Vertical'; $script:txtFbMsg.Dock = 'Fill'; $script:txtFbMsg.MaxLength = 3000
+$fp.Controls.Add($script:txtFbMsg, 0, 3)
+$l3 = New-Lbl 'Seu e-mail (opcional, só se quiser resposta)' 360; $l3.Dock = 'Fill'; $l3.TextAlign = 'BottomLeft'
+$fp.Controls.Add($l3, 0, 4)
+$script:txtFbMail = New-Object System.Windows.Forms.TextBox
+$script:txtFbMail.Dock = 'Top'; $script:txtFbMail.MaxLength = 120
+$fp.Controls.Add($script:txtFbMail, 0, 5)
+$script:chkFbTec = New-Object System.Windows.Forms.CheckBox
+$script:chkFbTec.Text = 'Incluir informações técnicas (versão do programa e do Windows, tipo de conexão)'; $script:chkFbTec.AutoSize = $false; $script:chkFbTec.Dock = 'Fill'; $script:chkFbTec.Checked = $true
+$fp.Controls.Add($script:chkFbTec, 0, 6)
+$tbFb = New-Toolbar
+$script:btnFbSend = New-Btn 'Enviar' { Start-FeedbackSend } 110
+[void]$tbFb.Controls.Add($script:btnFbSend)
+[void]$tbFb.Controls.Add((New-Btn 'Abrir no meu e-mail' { Open-FeedbackMail } 180))
+$fp.Controls.Add($tbFb, 0, 7)
+$script:lblFbStatus = New-Object System.Windows.Forms.Label
+$script:lblFbStatus.Tag = 'muted'; $script:lblFbStatus.Dock = 'Fill'; $script:lblFbStatus.Padding = (New-Object System.Windows.Forms.Padding(4, 4, 4, 0))
+$fp.Controls.Add($script:lblFbStatus, 0, 8)
+$mid2.Controls.Add($fp, 1, 0)
+$tSp.Controls.Add($mid2, 0, 2)
+$pgSupp.Controls.Add($tSp)
+$tabs.TabPages.Add($pgSupp)
+
 # ordem final e abas em duas linhas
-$ordem = @('Assistente', 'Monitor', 'Diagnóstico', 'Rota', 'Histórico', 'Rede', 'Texto para o suporte', 'Este PC', 'Saúde dos discos', 'Ferramentas DNS', 'Desempenho em jogos', 'Atualizações')
+$ordem = @('Assistente', 'Monitor', 'Diagnóstico', 'Rota', 'Histórico', 'Rede', 'Wi-Fi', 'Texto para o suporte', 'Este PC', 'Saúde dos discos', 'Ferramentas DNS', 'Desempenho em jogos', 'Atualizações', 'Suporte')
 $todas = @(); foreach ($pg in $tabs.TabPages) { $todas += $pg }
 $tabs.TabPages.Clear()
 foreach ($nm in $ordem) { foreach ($pg in $todas) { if ($pg.Text -eq $nm) { [void]$tabs.TabPages.Add($pg) } } }
@@ -2274,8 +2518,7 @@ $script:form.Add_Resize({
 $tabs.Add_SelectedIndexChanged({
     param($sender, $e)
     try {
-        $nome = ''
-        if ($sender.SelectedTab) { $nome = [string]$sender.SelectedTab.Text }
+        $nome = Get-TabKey $sender.SelectedTab
         if ($nome -eq 'Desempenho em jogos' -and -not $script:GamesLoaded) { $script:GamesLoaded = $true; Refresh-GameList }
         if ($nome -eq 'Este PC' -and -not $script:HwLoaded) {
             $script:HwLoaded = $true
@@ -2283,12 +2526,15 @@ $tabs.Add_SelectedIndexChanged({
             if ($script:chkTemp.Checked) { Start-HwLive }
         }
         if ($nome -eq 'Saúde dos discos' -and -not $script:DiskLoaded) { $script:DiskLoaded = $true; Start-DiskInfo }
+        if ($nome -eq 'Wi-Fi' -and -not $script:WifiLoaded) { $script:WifiLoaded = $true; Start-Wifi }
+        if ($nome -eq 'Suporte') { Update-SupportInfo }
         if ($nome -eq 'Atualizações' -and -not $script:UpdOk -and -not $script:UpdChecking) { Start-UpdateCheck -Manual }
         if ($nome -eq 'Histórico' -and -not $script:HistLoaded) { $script:HistLoaded = $true; Fill-HistTargets; Start-HistLoad }
     } catch { Log-Error $_ }
 })
 
 # ------------------------------------------------------------ eventos e partida
+Apply-Language
 Apply-Theme
 $script:timer = New-Object System.Windows.Forms.Timer
 $script:timer.Interval = 250
@@ -2311,7 +2557,7 @@ $script:form.Add_Shown({
         foreach ($p in $script:DnsProviders) { [void]$script:DnsItems.Add([pscustomobject]@{ Nome = $p.Nome; Dns1 = $p.Dns1; Dns2 = $p.Dns2; Nota = $p.Nota; Media = $null; Falhas = 0; Ping = $null; Testado = $false; Filtra = [bool]$p.Filtra }) }
         Fill-DnsList
         Update-Verdict
-        $script:cmbTheme.Left = [math]::Max(320, $script:header.ClientSize.Width - $script:cmbTheme.Width - 150)
+        $script:cmbTheme.Left = [math]::Max(320, $script:header.ClientSize.Width - $script:cmbTheme.Width - 150); $script:cmbLang.Left = $script:cmbTheme.Left - $script:cmbLang.Width - 10
         Apply-Theme
         $script:timer.Start()
         if ([bool]$script:Cfg.AutoMonitor) {
